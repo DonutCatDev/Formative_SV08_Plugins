@@ -20,7 +20,7 @@ plugins/<plugin-name>/
 The root installer links payloads into the printer rather than copying them:
 
 - `klippy/extras/*` -> `~/klipper/klippy/extras/`
-- `config/` -> `~/printer_data/config/custom_plugins/<plugin-name>/`
+- `config/` -> `~/printer_data/config/custom_plugins/<plugin-name>/` when used
 - `activation/*` -> the corresponding path below `~/printer_data/config/`
 
 Plugins may provide a small activation include when an existing wildcard-owned

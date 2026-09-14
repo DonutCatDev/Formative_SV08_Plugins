@@ -90,6 +90,16 @@ for plugin in "${REQUESTED[@]}"; do
     [[ "$plugin" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { printf 'Invalid plugin name: %s\n' "$plugin" >&2; exit 1; }
     source_dir="$PLUGIN_ROOT/$plugin"
     [[ -d "$source_dir" ]] || { printf 'Unknown plugin: %s\n' "$plugin" >&2; exit 1; }
+
+    # Remove a dangling config-directory link left by an older plugin layout.
+    legacy_config_target="$CONFIG_DIR/custom_plugins/$plugin"
+    if [[ ! -d "$source_dir/config" && -L "$legacy_config_target" && \
+          "$(readlink "$legacy_config_target")" == "$source_dir/config" ]]; then
+        unlink "$legacy_config_target"
+        printf 'Removed obsolete config link: %s\n' "$legacy_config_target"
+        changed=1
+    fi
+
     if [[ "$MODE" == uninstall ]]; then
         if [[ -d "$source_dir/klippy/extras" ]]; then
             while IFS= read -r -d '' source_file; do

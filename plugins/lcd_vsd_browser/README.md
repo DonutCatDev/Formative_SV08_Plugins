@@ -37,10 +37,11 @@ Install through the repository manager. It creates this activation link:
   -> plugins/lcd_vsd_browser/activation/options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
 ```
 
-The linked file contains only the plugin include. Its `00-` prefix causes the
-existing `options/lcd/*.cfg` wildcard to load it before `lcd.cfg` constructs the
-display menu. Its include uses `../../custom_plugins/...` because Klipper
-resolves it relative to `options/lcd/`. Uninstall removes the activation link.
+The linked file contains the small `[lcd_vsd_browser]` configuration directly.
+Its `00-` prefix causes the existing `options/lcd/*.cfg` wildcard to load it
+before `lcd.cfg` constructs the display menu. This avoids a second include and
+does not depend on a companion configuration-directory link. Uninstall removes
+the activation link.
 
 Restart Klipper and verify it reaches Ready. The plugin replaces Klipper's
 `vsdlist` implementation, so the existing `[menu __main __sdcard]` section in
