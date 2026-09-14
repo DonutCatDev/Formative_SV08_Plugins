@@ -5,10 +5,13 @@ cd Formative_SV08_Plugins
 # Noninteractive alternatives:
 # ./install-plugins.sh --list
 # ./install-plugins.sh lcd_vsd_browser
+# ./install-plugins.sh network_status
 # ./install-plugins.sh --all
 
-# The LCD browser configuration is activated directly through an installer-owned
-# link in ~/printer_data/config/options/lcd/ and the existing *.cfg wildcard.
+# Plugin configuration is activated through installer-owned links. General
+# plugin entrypoints use ~/printer_data/config/custom_plugins/*.cfg; the LCD
+# browser uses the existing options/lcd/*.cfg wildcard.
 
 # Remove one plugin later with:
 # ./install-plugins.sh --uninstall lcd_vsd_browser
+# ./install-plugins.sh --uninstall network_status

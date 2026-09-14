@@ -17,8 +17,25 @@ Selecting a file opens a confirmation page containing:
 ..
 Print now
 example.gcode
-12.4 MB
+Est 2h07m
 ```
+
+The displayed duration is calculated as:
+
+```text
+slicer estimate + START_PRINT HEATSOAK minutes + 9 startup minutes
+```
+
+The parser recognizes OrcaSlicer/PrusaSlicer-style `estimated printing time`
+metadata and Cura-style `;TIME:` seconds. It reads the actual, uncommented
+`START_PRINT ... HEATSOAK=<minutes>` command near the beginning of the file. If
+that parameter is omitted, `default_heatsoak_minutes` is used to match the
+printer macro default. If no supported slicer estimate is found, the LCD shows
+`Time unavailable` rather than presenting a misleading total.
+
+Only bounded sections from the beginning and end of the file are read. Results
+are cached using the file path, size, and modification time, so revisiting a
+selection does not repeatedly scan the file.
 
 `Print now` exits the LCD menu and starts the selected path with Klipper's
 recursive `SDCARD_PRINT_FILE` implementation. The plugin passes an internal
@@ -57,6 +74,9 @@ extensions: gcode, g, gco
 show_hidden: False
 confirm_print: True
 max_remembered_files: 256
+startup_minutes: 9
+default_heatsoak_minutes: 10
+metadata_read_bytes: 262144
 ```
 
 This is an initial implementation and requires pilot testing on the physical

@@ -5,8 +5,12 @@ Formative SV08 fleet. It is intentionally separate from the shared printer
 configuration repository so plugins can be installed, updated, and removed
 without replacing machine configuration.
 
-The first plugin is `lcd_vsd_browser`, a hierarchical browser with explicit
-print confirmation for files below Klipper's `virtual_sdcard` directory.
+Available plugins:
+
+- `lcd_vsd_browser`: a hierarchical browser with explicit print confirmation
+  for files below Klipper's `virtual_sdcard` directory.
+- `network_status`: Moonraker-backed, on-demand network status for the stock
+  Klipper LCD menu.
 
 ## Repository layout
 
@@ -24,7 +28,15 @@ The root installer links payloads into the printer rather than copying them:
 - `activation/*` -> the corresponding path below `~/printer_data/config/`
 
 Plugins may provide a small activation include when an existing wildcard-owned
-directory is available. For example, the LCD browser installs:
+directory is available. General plugin configuration is linked into the shared
+`custom_plugins/*.cfg` include point. For example, network status installs:
+
+```text
+custom_plugins/network-status.cfg
+```
+
+Feature-specific wildcard directories remain available where useful. For
+example, the LCD browser installs:
 
 ```text
 options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
@@ -38,8 +50,10 @@ The installer removes only activation links it owns.
 ./install-plugins.sh
 ./install-plugins.sh --list
 ./install-plugins.sh lcd_vsd_browser
+./install-plugins.sh network_status
 ./install-plugins.sh --all
 ./install-plugins.sh --uninstall lcd_vsd_browser
+./install-plugins.sh --uninstall network_status
 ```
 
 Running `install-plugins.sh` without arguments opens an interactive menu. It

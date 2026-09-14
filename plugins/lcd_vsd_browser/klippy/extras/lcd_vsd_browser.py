@@ -6,7 +6,9 @@
 
 import collections
 import logging
+import math
 import os
+import re
 
 from .display import menu as display_menu
 
@@ -19,14 +21,41 @@ def _is_within(root, candidate):
         return False
 
 
-def _format_size(size):
-    value = float(size)
-    for suffix in ("B", "KB", "MB", "GB"):
-        if value < 1024.0 or suffix == "GB":
-            if suffix == "B":
-                return "%d %s" % (value, suffix)
-            return "%.1f %s" % (value, suffix)
-        value /= 1024.0
+_HUMAN_TIME_RE = re.compile(
+    r"estimated\s+printing\s+time(?:\s*\([^)]*\))?\s*=\s*"
+    r"(?:(\d+)\s*d\s*)?(?:(\d+)\s*h\s*)?"
+    r"(?:(\d+)\s*m\s*)?(?:(\d+(?:\.\d+)?)\s*s)?",
+    re.IGNORECASE)
+_CURA_TIME_RE = re.compile(r"^\s*;\s*TIME\s*:\s*(\d+(?:\.\d+)?)", re.MULTILINE)
+_HEATSOAK_RE = re.compile(
+    r"^\s*START_PRINT\b[^\r\n;]*?\bHEATSOAK\s*=\s*"
+    r"([+]?(?:\d+(?:\.\d*)?|\.\d+))",
+    re.IGNORECASE | re.MULTILINE)
+
+
+def _parse_slicer_seconds(text):
+    match = _HUMAN_TIME_RE.search(text)
+    if match is not None and any(value is not None for value in match.groups()):
+        days, hours, minutes, seconds = (
+            float(value or 0) for value in match.groups())
+        return days * 86400 + hours * 3600 + minutes * 60 + seconds
+    match = _CURA_TIME_RE.search(text)
+    return float(match.group(1)) if match is not None else None
+
+
+def _parse_heatsoak_minutes(text):
+    match = _HEATSOAK_RE.search(text)
+    return float(match.group(1)) if match is not None else None
+
+
+def _format_estimate(seconds):
+    if seconds is None:
+        return "Time unavailable"
+    total_minutes = int(math.ceil(seconds / 60.0))
+    hours, minutes = divmod(total_minutes, 60)
+    if hours:
+        return "Est %dh%02dm" % (hours, minutes)
+    return "Est %dm" % (minutes,)
 
 
 class MenuLCDVSDFile(display_menu.MenuList):
@@ -54,8 +83,9 @@ class MenuLCDVSDFile(display_menu.MenuList):
             "command", name="Print now", gcode=start_print))
         self.insert_item(self.manager.menuitem_from(
             "command", name=filename, gcode=lambda element, context: ""))
+        estimate = self.plugin.estimate_file(self.relative_path)
         self.insert_item(self.manager.menuitem_from(
-            "command", name=_format_size(self.file_size),
+            "command", name=_format_estimate(estimate),
             gcode=lambda element, context: ""))
 
 
@@ -119,8 +149,15 @@ class LCDVSDFileBrowser:
         self.show_hidden = config.getboolean("show_hidden", False)
         self.confirm_print = config.getboolean("confirm_print", True)
         self.max_tokens = config.getint("max_remembered_files", 256, minval=16)
+        self.startup_minutes = config.getfloat(
+            "startup_minutes", 9.0, minval=0.0)
+        self.default_heatsoak_minutes = config.getfloat(
+            "default_heatsoak_minutes", 10.0, minval=0.0)
+        self.metadata_read_bytes = config.getint(
+            "metadata_read_bytes", 262144, minval=4096)
         self._next_token = 1
         self._files = collections.OrderedDict()
+        self._estimate_cache = {}
         self.gcode.register_command(
             "LCD_VSD_PRINT", self.cmd_LCD_VSD_PRINT,
             desc="Print a file selected by the LCD virtual-SD browser")
@@ -183,6 +220,45 @@ class LCDVSDFileBrowser:
             self._files.popitem(last=False)
         return token
 
+    def estimate_file(self, relative_path):
+        root, filename = self._resolve(relative_path)
+        stat = os.stat(filename)
+        cache_key = (filename, stat.st_size, stat.st_mtime_ns)
+        if cache_key in self._estimate_cache:
+            return self._estimate_cache[cache_key]
+
+        read_size = self.metadata_read_bytes
+        with open(filename, "rb") as gcode_file:
+            head = gcode_file.read(read_size)
+            if stat.st_size > read_size:
+                gcode_file.seek(max(0, stat.st_size - read_size))
+                tail = gcode_file.read(read_size)
+            else:
+                tail = b""
+        head_text = head.decode("utf-8", "replace")
+        tail_text = tail.decode("utf-8", "replace")
+        slicer_seconds = _parse_slicer_seconds(tail_text)
+        if slicer_seconds is None:
+            slicer_seconds = _parse_slicer_seconds(head_text)
+        if slicer_seconds is None:
+            estimate = None
+        else:
+            heatsoak = _parse_heatsoak_minutes(head_text)
+            if heatsoak is None:
+                heatsoak = self.default_heatsoak_minutes
+            estimate = slicer_seconds + 60.0 * (
+                heatsoak + self.startup_minutes)
+
+        # Retain only current entries and keep cache growth bounded.
+        self._estimate_cache = {
+            key: value for key, value in self._estimate_cache.items()
+            if key[0] != filename
+        }
+        self._estimate_cache[cache_key] = estimate
+        while len(self._estimate_cache) > self.max_tokens:
+            self._estimate_cache.pop(next(iter(self._estimate_cache)))
+        return estimate
+
     def cmd_LCD_VSD_PRINT(self, gcmd):
         token = gcmd.get_int("TOKEN", minval=1)
         relative_path = self._files.get(token)
@@ -209,6 +285,8 @@ class LCDVSDFileBrowser:
             "extensions": sorted(self.extensions),
             "confirm_print": self.confirm_print,
             "show_hidden": self.show_hidden,
+            "startup_minutes": self.startup_minutes,
+            "default_heatsoak_minutes": self.default_heatsoak_minutes,
         }
 
 
