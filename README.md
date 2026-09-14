@@ -63,14 +63,17 @@ noninteractive path for automation. Use `--no-restart` to defer restarting
 Klipper and Moonraker. Uninstall removes only links that still point into this
 repository; it does not delete replacement files or edit printer configuration.
 
-Publish an annotated release tag after committing and pushing a clean branch:
+Include `[release]` in the final commit message pushed to `main` to have
+GitHub Actions create the annotated release tag automatically:
 
-```bash
-./tag-release.sh
+```text
+Add network status support [release]
 ```
 
 The generated `vYYYY.M.DDHHMMSS` tag format gives Moonraker's `git_repo`
-Update Manager a release version to display.
+Update Manager a release version to display. The workflow can also be run
+manually from GitHub Actions. `./tag-release.sh` remains available as a local
+fallback.
 
 Environment overrides are documented by each script's `--help` output.
 

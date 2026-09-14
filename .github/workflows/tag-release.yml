@@ -1,0 +1,62 @@
+name: Tag plugin release
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: plugin-release-tag
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >-
+      github.ref == 'refs/heads/main' &&
+      (github.event_name == 'workflow_dispatch' ||
+       contains(github.event.head_commit.message, '[release]'))
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Create and push annotated release tag
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+
+          read -r year month day hour minute second timestamp < <(
+            date -u '+%Y %m %d %H %M %S %Y-%m-%dT%H:%M:%SZ'
+          )
+          month_number=$((10#$month))
+          release_sequence=$((
+            10#$day * 1000000 +
+            10#$hour * 10000 +
+            10#$minute * 100 +
+            10#$second
+          ))
+          tag="v${year}.${month_number}.${release_sequence}"
+
+          if git rev-parse --verify --quiet "refs/tags/$tag"; then
+            printf 'Tag already exists: %s\n' "$tag" >&2
+            exit 1
+          fi
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+
+          message="Formative SV08 plugins release
+
+          Timestamp: $timestamp
+          Commit: $GITHUB_SHA"
+
+          git tag -a "$tag" -m "$message"
+          git push origin "refs/tags/$tag"
+          printf 'Published %s for %s\n' "$tag" "$GITHUB_SHA"
+
