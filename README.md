@@ -14,22 +14,23 @@ print confirmation for files below Klipper's `virtual_sdcard` directory.
 plugins/<plugin-name>/
   klippy/extras/       Optional Klipper Python modules
   config/              Optional Klipper configuration fragments
+  activation/          Files linked relative to ~/printer_data/config
 ```
 
 The root installer links payloads into the printer rather than copying them:
 
 - `klippy/extras/*` -> `~/klipper/klippy/extras/`
 - `config/` -> `~/printer_data/config/custom_plugins/<plugin-name>/`
+- `activation/*` -> the corresponding path below `~/printer_data/config/`
 
-Installed configuration fragments are not activated implicitly. The printer
-configuration must explicitly include the desired plugin file, for example:
+Plugins may provide a small activation include when an existing wildcard-owned
+directory is available. For example, the LCD browser installs:
 
-```ini
-[include custom_plugins/lcd_vsd_browser/lcd_vsd_browser.cfg]
+```text
+options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
 ```
 
-That separation makes installation reversible and keeps activation visible in
-the normal configuration review.
+The installer removes only activation links it owns.
 
 ## Usage
 

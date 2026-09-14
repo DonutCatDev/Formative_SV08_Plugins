@@ -102,6 +102,18 @@ for plugin in "${REQUESTED[@]}"; do
             done < <(find "$source_dir/klippy/extras" -maxdepth 1 -type f -name '*.py' -print0)
         fi
 
+        if [[ -d "$source_dir/activation" ]]; then
+            while IFS= read -r -d '' source_file; do
+                relative_target="${source_file#"$source_dir/activation/"}"
+                target="$CONFIG_DIR/$relative_target"
+                if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_file")" ]]; then
+                    unlink "$target"
+                    printf 'Removed activation link: %s\n' "$target"
+                    changed=1
+                fi
+            done < <(find "$source_dir/activation" -type f -print0)
+        fi
+
         target="$CONFIG_DIR/custom_plugins/$plugin"
         if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_dir/config")" ]]; then
             unlink "$target"
@@ -148,6 +160,26 @@ for plugin in "${REQUESTED[@]}"; do
         changed=1
     fi
 
+    if [[ -d "$source_dir/activation" ]]; then
+        while IFS= read -r -d '' source_file; do
+            has_payload=1
+            relative_target="${source_file#"$source_dir/activation/"}"
+            target="$CONFIG_DIR/$relative_target"
+            mkdir -p "${target%/*}"
+            if [[ -e "$target" || -L "$target" ]]; then
+                if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_file")" ]]; then
+                    printf 'Already linked: %s\n' "$target"
+                    continue
+                fi
+                printf 'Refusing to replace existing activation path: %s\n' "$target" >&2
+                exit 1
+            fi
+            ln -s "$source_file" "$target"
+            printf 'Linked %s -> %s\n' "$target" "$source_file"
+            changed=1
+        done < <(find "$source_dir/activation" -type f -print0)
+    fi
+
     ((has_payload)) || printf 'Skipping planned plugin with no runtime payload: %s\n' "$plugin"
 done
 
@@ -188,7 +220,7 @@ if ((changed && RESTART_SERVICES)); then
 fi
 
 if [[ "$MODE" == install ]]; then
-    printf 'Plugin installation complete. Activate desired config includes explicitly.\n'
+    printf 'Plugin installation complete. Restart Klipper and verify it reaches Ready.\n'
 else
     printf 'Plugin uninstall complete. Remove obsolete config include lines manually.\n'
 fi

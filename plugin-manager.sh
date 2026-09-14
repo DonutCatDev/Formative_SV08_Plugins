@@ -48,6 +48,17 @@ plugin_status() {
             linked=$((linked + 1))
         fi
     fi
+    if [[ -d "$source_dir/activation" ]]; then
+        while IFS= read -r -d '' source_file; do
+            payload=1
+            expected=$((expected + 1))
+            relative_target="${source_file#"$source_dir/activation/"}"
+            target="$CONFIG_DIR/$relative_target"
+            if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_file")" ]]; then
+                linked=$((linked + 1))
+            fi
+        done < <(find "$source_dir/activation" -type f -print0)
+    fi
 
     if ((payload == 0)); then
         printf 'planned'

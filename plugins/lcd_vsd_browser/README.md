@@ -30,17 +30,22 @@ is recommended for a physical rotary encoder.
 
 ## Install and activate
 
-Install through the repository manager, then add this include **before** the
-existing `options/lcd/*.cfg` include:
+Install through the repository manager. It creates this activation link:
 
-```ini
-[include custom_plugins/lcd_vsd_browser/lcd_vsd_browser.cfg]
-[include options/lcd/*.cfg]
+```text
+~/printer_data/config/options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
+  -> plugins/lcd_vsd_browser/activation/options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
 ```
 
-Restart Klipper and verify it reaches Ready. The plugin overrides the existing
-`[menu __main __sdcard]` definition with `type: vsd_browser`; its dynamic browser
-intentionally ignores the old `__start` child used by the stock two-step flow.
+The linked file contains only the plugin include. Its `00-` prefix causes the
+existing `options/lcd/*.cfg` wildcard to load it before `lcd.cfg` constructs the
+display menu. Uninstall removes the activation link.
+
+Restart Klipper and verify it reaches Ready. The plugin replaces Klipper's
+`vsdlist` implementation, so the existing `[menu __main __sdcard]` section in
+`sovol-menu-moonraker.cfg` remains the authoritative menu definition. Its
+dynamic browser intentionally ignores the old `__start` child used by the stock
+two-step flow.
 
 ## Configuration
 

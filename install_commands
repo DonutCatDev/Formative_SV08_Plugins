@@ -7,8 +7,8 @@ cd Formative_SV08_Plugins
 # ./install-plugins.sh lcd_vsd_browser
 # ./install-plugins.sh --all
 
-# Activate the installed plugin only after reviewing its configuration:
-# [include custom_plugins/lcd_vsd_browser/lcd_vsd_browser.cfg]
+# The LCD browser is activated automatically through an installer-owned link in
+# ~/printer_data/config/options/lcd/ and the existing *.cfg wildcard include.
 
 # Remove one plugin later with:
 # ./install-plugins.sh --uninstall lcd_vsd_browser

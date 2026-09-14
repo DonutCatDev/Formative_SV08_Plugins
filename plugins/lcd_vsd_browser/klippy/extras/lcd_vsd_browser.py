@@ -125,9 +125,9 @@ class LCDVSDFileBrowser:
             "LCD_VSD_PRINT", self.cmd_LCD_VSD_PRINT,
             desc="Print a file selected by the LCD virtual-SD browser")
 
-        existing = display_menu.menu_items.get("vsd_browser")
-        if existing is not None and existing is not MenuLCDVSDDirectory:
-            raise config.error("Klipper menu type 'vsd_browser' is already registered")
+        # Replace the stock vsdlist implementation before [display] constructs
+        # configured menu items. Keep a distinct alias for optional custom use.
+        display_menu.menu_items["vsdlist"] = MenuLCDVSDDirectory
         display_menu.menu_items["vsd_browser"] = MenuLCDVSDDirectory
 
     def _virtual_sd(self):
