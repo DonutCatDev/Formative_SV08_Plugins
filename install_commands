@@ -15,3 +15,7 @@ cd Formative_SV08_Plugins
 # Remove one plugin later with:
 # ./install-plugins.sh --uninstall lcd_vsd_browser
 # ./install-plugins.sh --uninstall network_status
+
+# For machines with the old ~/klipper_network_status checkout, open the
+# interactive manager and choose network_status -> Remove legacy installation
+# before installing the replacement.

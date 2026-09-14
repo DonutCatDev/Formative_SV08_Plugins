@@ -73,3 +73,8 @@ The generated `vYYYY.M.DDHHMMSS` tag format gives Moonraker's `git_repo`
 Update Manager a release version to display.
 
 Environment overrides are documented by each script's `--help` output.
+
+The `network_status` menu also offers **Remove legacy installation**. After
+confirmation, it removes only a `network_status.py` symlink that resolves inside
+`~/klipper_network_status` and then removes that Git repository. It refuses a
+regular module file, a link to any other location, or a non-Git directory.

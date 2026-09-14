@@ -96,6 +96,22 @@ run_uninstall() {
         "$REPO_DIR/install-plugins.sh" --uninstall "${restart_arg[@]}" "$plugin"
 }
 
+run_legacy_cleanup() {
+    local plugin="$1" cleanup="$PLUGIN_ROOT/$1/legacy-cleanup.sh" answer
+    [[ -f "$cleanup" ]] || {
+        printf 'No legacy cleanup is available for %s.\n' "$plugin" >&2
+        return 1
+    }
+    printf 'Remove the confirmed legacy module link and repository? [y/N] '
+    IFS= read -r answer || return 1
+    case "${answer,,}" in
+        y|yes)
+            KLIPPER_DIR="$KLIPPER_DIR" bash "$cleanup"
+            ;;
+        *) printf 'Legacy cleanup cancelled.\n' ;;
+    esac
+}
+
 plugin_menu() {
     local plugin="$1" choice
     while true; do
@@ -108,6 +124,9 @@ plugin_menu() {
         printf '%s\n' '--------------------------------------------------'
         printf '  1) Install / repair\n'
         printf '  2) Uninstall\n'
+        if [[ -f "$PLUGIN_ROOT/$plugin/legacy-cleanup.sh" ]]; then
+            printf '  3) Remove legacy installation\n'
+        fi
         printf '  B) Back\n'
         printf '%s\n' '--------------------------------------------------'
         printf 'Select an action: '
@@ -115,6 +134,14 @@ plugin_menu() {
         case "${choice,,}" in
             1|i|install) run_install "$plugin"; pause_menu ;;
             2|u|uninstall|remove) run_uninstall "$plugin"; pause_menu ;;
+            3|legacy|cleanup)
+                if [[ -f "$PLUGIN_ROOT/$plugin/legacy-cleanup.sh" ]]; then
+                    run_legacy_cleanup "$plugin"
+                else
+                    printf 'Invalid selection: %s\n' "$choice"
+                fi
+                pause_menu
+                ;;
             b|back|q|quit) return 0 ;;
             *) printf 'Invalid selection: %s\n' "$choice"; pause_menu ;;
         esac
