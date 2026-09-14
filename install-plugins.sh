@@ -91,6 +91,26 @@ for plugin in "${REQUESTED[@]}"; do
     source_dir="$PLUGIN_ROOT/$plugin"
     [[ -d "$source_dir" ]] || { printf 'Unknown plugin: %s\n' "$plugin" >&2; exit 1; }
 
+    # Remove installer-owned activation links retired by newer plugin layouts.
+    if [[ -f "$source_dir/legacy-activation-paths" ]]; then
+        while IFS= read -r legacy_path || [[ -n "$legacy_path" ]]; do
+            [[ -z "$legacy_path" || "$legacy_path" == \#* ]] && continue
+            if [[ "$legacy_path" == /* || "/$legacy_path/" == *"/../"* ]]; then
+                printf 'Invalid legacy activation path for %s: %s\n' \
+                    "$plugin" "$legacy_path" >&2
+                exit 1
+            fi
+            target="$CONFIG_DIR/$legacy_path"
+            legacy_source="$source_dir/activation/$legacy_path"
+            if [[ -L "$target" && \
+                  "$(readlink -m "$target")" == "$(readlink -m "$legacy_source")" ]]; then
+                unlink "$target"
+                printf 'Removed legacy activation link: %s\n' "$target"
+                changed=1
+            fi
+        done < "$source_dir/legacy-activation-paths"
+    fi
+
     # Remove a dangling config-directory link left by an older plugin layout.
     legacy_config_target="$CONFIG_DIR/custom_plugins/$plugin"
     if [[ ! -d "$source_dir/config" && -L "$legacy_config_target" && \

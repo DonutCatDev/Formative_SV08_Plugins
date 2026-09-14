@@ -27,19 +27,12 @@ The root installer links payloads into the printer rather than copying them:
 - `config/` -> `~/printer_data/config/custom_plugins/<plugin-name>/` when used
 - `activation/*` -> the corresponding path below `~/printer_data/config/`
 
-Plugins may provide a small activation include when an existing wildcard-owned
-directory is available. General plugin configuration is linked into the shared
-`custom_plugins/*.cfg` include point. For example, network status installs:
+Plugins provide small activation entrypoints linked into the shared
+`custom_plugins/*.cfg` include point. For example:
 
 ```text
 custom_plugins/network-status.cfg
-```
-
-Feature-specific wildcard directories remain available where useful. For
-example, the LCD browser installs:
-
-```text
-options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
+custom_plugins/lcd-vsd-browser.cfg
 ```
 
 The installer removes only activation links it owns.

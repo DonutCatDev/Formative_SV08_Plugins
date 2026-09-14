@@ -50,15 +50,16 @@ is recommended for a physical rotary encoder.
 Install through the repository manager. It creates this activation link:
 
 ```text
-~/printer_data/config/options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
-  -> plugins/lcd_vsd_browser/activation/options/lcd/00-custom-plugin-lcd-vsd-browser.cfg
+~/printer_data/config/custom_plugins/lcd-vsd-browser.cfg
+  -> plugins/lcd_vsd_browser/activation/custom_plugins/lcd-vsd-browser.cfg
 ```
 
 The linked file contains the small `[lcd_vsd_browser]` configuration directly.
-Its `00-` prefix causes the existing `options/lcd/*.cfg` wildcard to load it
-before `lcd.cfg` constructs the display menu. This avoids a second include and
-does not depend on a companion configuration-directory link. Uninstall removes
-the activation link.
+It loads through the shared `custom_plugins/*.cfg` wildcard before the LCD
+configuration. This avoids a plugin-specific include and does not depend on a
+companion configuration-directory link. During migration, the installer also
+removes its older `options/lcd/00-custom-plugin-lcd-vsd-browser.cfg` link.
+Uninstall removes the current activation link.
 
 Restart Klipper and verify it reaches Ready. The plugin replaces Klipper's
 `vsdlist` implementation, so the existing `[menu __main __sdcard]` section in
