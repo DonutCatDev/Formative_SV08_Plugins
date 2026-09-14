@@ -39,7 +39,8 @@ Install through the repository manager. It creates this activation link:
 
 The linked file contains only the plugin include. Its `00-` prefix causes the
 existing `options/lcd/*.cfg` wildcard to load it before `lcd.cfg` constructs the
-display menu. Uninstall removes the activation link.
+display menu. Its include uses `../../custom_plugins/...` because Klipper
+resolves it relative to `options/lcd/`. Uninstall removes the activation link.
 
 Restart Klipper and verify it reaches Ready. The plugin replaces Klipper's
 `vsdlist` implementation, so the existing `[menu __main __sdcard]` section in
