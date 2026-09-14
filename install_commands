@@ -1,11 +1,14 @@
 git clone https://github.com/DonutCatDev/Formative_SV08_Plugins.git
 cd Formative_SV08_Plugins
-./install-plugins.sh --list
-./install-plugins.sh lcd_vsd_browser
+./install-plugins.sh
+
+# Noninteractive alternatives:
+# ./install-plugins.sh --list
+# ./install-plugins.sh lcd_vsd_browser
+# ./install-plugins.sh --all
 
 # Activate the installed plugin only after reviewing its configuration:
 # [include custom_plugins/lcd_vsd_browser/lcd_vsd_browser.cfg]
 
 # Remove one plugin later with:
-# ./uninstall-plugins.sh lcd_vsd_browser
-
+# ./install-plugins.sh --uninstall lcd_vsd_browser
