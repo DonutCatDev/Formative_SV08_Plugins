@@ -7,6 +7,8 @@ without replacing machine configuration.
 
 Available plugins:
 
+- `lcd_updates`: on-demand LCD updates for explicitly allowed Moonraker modules.
+
 - `lcd_vsd_browser`: a hierarchical browser with explicit print confirmation
   for files below Klipper's `virtual_sdcard` directory.
 - `network_status`: Moonraker-backed, on-demand network status for the stock
