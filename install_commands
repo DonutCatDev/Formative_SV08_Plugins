@@ -6,15 +6,25 @@ cd Formative_SV08_Plugins
 # ./install-plugins.sh --list
 # ./install-plugins.sh lcd_vsd_browser
 # ./install-plugins.sh network_status
+# ./install-plugins.sh lcd_updates
 # ./install-plugins.sh --all
 
+# Force install/repair of all available plugins (preserves conflicting files):
+# ./install-plugins.sh --all -r
+# ./install-plugins.sh -r lcd_updates
+
+# Uninstall all installer-owned plugin links, or one plugin:
+# ./install-plugins.sh --all -u
+# ./install-plugins.sh -u lcd_vsd_browser
+# ./install-plugins.sh -u network_status
+# ./install-plugins.sh -u lcd_updates
+
+# Remove legacy installations without prompts (currently Network Status only):
+# This deletes the recognized legacy checkout and its legacy module link.
+# ./install-plugins.sh --all --rl
+# ./install-plugins.sh --rl network_status
+
+# Long action aliases: --uninstall, --repair, --remove-legacy.
+# Actions are mutually exclusive. Add --no-restart to defer service restarts.
 # Plugin configuration is activated through installer-owned entrypoints under
 # ~/printer_data/config/custom_plugins/*.cfg.
-
-# Remove one plugin later with:
-# ./install-plugins.sh --uninstall lcd_vsd_browser
-# ./install-plugins.sh --uninstall network_status
-
-# For machines with the old ~/klipper_network_status checkout, open the
-# interactive manager and choose network_status -> Remove legacy installation
-# before installing the replacement.

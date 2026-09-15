@@ -47,6 +47,9 @@ The installer removes only activation links it owns.
 ./install-plugins.sh lcd_vsd_browser
 ./install-plugins.sh network_status
 ./install-plugins.sh --all
+./install-plugins.sh --all -r
+./install-plugins.sh --all -u
+./install-plugins.sh --all --rl
 ./install-plugins.sh --uninstall lcd_vsd_browser
 ./install-plugins.sh --uninstall network_status
 ```
@@ -76,3 +79,14 @@ The `network_status` menu also offers **Remove legacy installation**. After
 confirmation, it removes only a `network_status.py` symlink that resolves inside
 `~/klipper_network_status` and then removes that Git repository. It refuses a
 regular module file, a link to any other location, or a non-Git directory.
+
+Noninteractive actions accept `--all` or named plugins: `-u` / `--uninstall`,
+`-r` / `--repair`, and `--rl` / `--remove-legacy`. Select only one action.
+Repair installs missing payloads and recreates existing installer-owned links;
+it refuses to overwrite local files or unrelated links. Uninstall scans all
+available plugins and removes only their owned links, including partial installs.
+Legacy removal invokes every selected plugin's `legacy-cleanup.sh` without an
+additional prompt and skips plugins without one. Currently Network Status has
+that action: it deletes the recognized legacy Git checkout and legacy module
+link, while preserving an installed replacement module link. Existing cleanup
+path and ownership checks still apply. Use `--no-restart` to defer restarts.

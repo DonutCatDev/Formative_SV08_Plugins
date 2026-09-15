@@ -11,13 +11,17 @@ RESTART_SERVICES=1
 LIST_ONLY=0
 INSTALL_ALL=0
 MODE=install
+ACTION_SELECTED=0
+REPAIR=0
 PURGE_UPDATE_MANAGER=0
 declare -a REQUESTED=()
 
 usage() {
     printf 'Usage: %s [--no-restart] [--list] [--uninstall] [--all | plugin ...]\n' "${0##*/}"
     printf '\nWith no plugin names, opens the interactive plugin manager.\n'
-    printf 'Use --uninstall with a plugin name or --all to remove plugins.\n'
+    printf 'Actions: -u/--uninstall, -r/--repair, --rl/--remove-legacy.\n'
+    printf 'Use an action with plugin names or --all (no prompts).\n'
+    printf 'Repair recreates installer-owned links; conflicting files are preserved.\n'
     printf 'Use --purge-update-manager with --uninstall to remove its managed file.\n'
     printf '\nEnvironment overrides:\n'
     printf '  FORMATIVE_PLUGINS_REPO_URL       Git repository URL\n'
@@ -32,14 +36,35 @@ while (($#)); do
         --no-restart) RESTART_SERVICES=0 ;;
         --list) LIST_ONLY=1 ;;
         --all) INSTALL_ALL=1 ;;
-        --uninstall) MODE=uninstall ;;
+        -u|--uninstall|-r|--repair|--rl|--remove-legacy)
+            ((ACTION_SELECTED == 0)) || { printf 'Choose only one action.\n' >&2; exit 2; }
+            ACTION_SELECTED=1
+            case "$1" in
+                -u|--uninstall) MODE=uninstall ;;
+                -r|--repair) REPAIR=1 ;;
+                --rl|--remove-legacy) MODE=legacy ;;
+            esac
+            ;;
         --purge-update-manager) PURGE_UPDATE_MANAGER=1 ;;
         -h|--help) usage; exit 0 ;;
-        --*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
+        -*) printf 'Unknown option: %s\n' "$1" >&2; usage >&2; exit 2 ;;
         *) REQUESTED+=("$1") ;;
     esac
     shift
 done
+
+if ((ACTION_SELECTED && INSTALL_ALL == 0 && ${#REQUESTED[@]} == 0)); then
+    printf 'An action requires --all or plugin names.\n' >&2
+    exit 2
+fi
+if ((PURGE_UPDATE_MANAGER)) && [[ "$MODE" != uninstall ]]; then
+    printf '--purge-update-manager requires --uninstall.\n' >&2
+    exit 2
+fi
+if ((INSTALL_ALL && ${#REQUESTED[@]})); then
+    printf 'Use --all or plugin names, not both.\n' >&2
+    exit 2
+fi
 
 for command_name in git ln mkdir grep readlink find sort; do
     command -v "$command_name" >/dev/null 2>&1 || {
@@ -85,11 +110,28 @@ if [[ "$MODE" == install ]]; then
     mkdir -p "$CONFIG_DIR/custom_plugins"
 fi
 
+# Validate the entire selection before performing any plugin action.
+for plugin in "${REQUESTED[@]}"; do
+    [[ "$plugin" =~ ^[a-z0-9][a-z0-9_-]*$ && -d "$PLUGIN_ROOT/$plugin" ]] || {
+        printf 'Unknown or invalid plugin: %s\n' "$plugin" >&2; exit 1;
+    }
+done
+
 changed=0
 for plugin in "${REQUESTED[@]}"; do
     [[ "$plugin" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || { printf 'Invalid plugin name: %s\n' "$plugin" >&2; exit 1; }
     source_dir="$PLUGIN_ROOT/$plugin"
     [[ -d "$source_dir" ]] || { printf 'Unknown plugin: %s\n' "$plugin" >&2; exit 1; }
+
+    if [[ "$MODE" == legacy ]]; then
+        if [[ -f "$source_dir/legacy-cleanup.sh" ]]; then
+            KLIPPER_DIR="$KLIPPER_DIR" bash "$source_dir/legacy-cleanup.sh"
+            changed=1
+        else
+            printf 'No legacy cleanup available for %s; skipping.\n' "$plugin"
+        fi
+        continue
+    fi
 
     # Remove installer-owned activation links retired by newer plugin layouts.
     if [[ -f "$source_dir/legacy-activation-paths" ]]; then
@@ -161,7 +203,14 @@ for plugin in "${REQUESTED[@]}"; do
             target="$KLIPPER_DIR/klippy/extras/${source_file##*/}"
             if [[ -e "$target" || -L "$target" ]]; then
                 if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_file")" ]]; then
-                    printf 'Already linked: %s\n' "$target"
+                    if ((REPAIR)); then
+                        unlink "$target"
+                        ln -s "$source_file" "$target"
+                        changed=1
+                        printf 'Repaired link: %s\n' "$target"
+                    else
+                        printf 'Already linked: %s\n' "$target"
+                    fi
                     continue
                 fi
                 printf 'Refusing to replace existing Klipper module: %s\n' "$target" >&2
@@ -181,7 +230,13 @@ for plugin in "${REQUESTED[@]}"; do
                 printf 'Refusing to replace existing plugin config path: %s\n' "$target" >&2
                 exit 1
             fi
-            printf 'Already linked: %s\n' "$target"
+            if ((REPAIR)); then
+                unlink "$target"
+                ln -s "$source_dir/config" "$target"
+                printf 'Repaired link: %s\n' "$target"
+            else
+                printf 'Already linked: %s\n' "$target"
+            fi
         else
             ln -s "$source_dir/config" "$target"
             printf 'Linked %s -> %s\n' "$target" "$source_dir/config"
@@ -198,7 +253,14 @@ for plugin in "${REQUESTED[@]}"; do
             mkdir -p "${target%/*}"
             if [[ -e "$target" || -L "$target" ]]; then
                 if [[ -L "$target" && "$(readlink -f "$target")" == "$(readlink -f "$source_file")" ]]; then
-                    printf 'Already linked: %s\n' "$target"
+                    if ((REPAIR)); then
+                        unlink "$target"
+                        ln -s "$source_file" "$target"
+                        changed=1
+                        printf 'Repaired link: %s\n' "$target"
+                    else
+                        printf 'Already linked: %s\n' "$target"
+                    fi
                     continue
                 fi
                 printf 'Refusing to replace existing activation path: %s\n' "$target" >&2
@@ -249,7 +311,9 @@ if ((changed && RESTART_SERVICES)); then
     fi
 fi
 
-if [[ "$MODE" == install ]]; then
+if [[ "$MODE" == legacy ]]; then
+    printf 'Legacy cleanup complete. Restart Klipper before further use.\n'
+elif [[ "$MODE" == install ]]; then
     printf 'Plugin installation complete. Restart Klipper and verify it reaches Ready.\n'
 else
     printf 'Plugin uninstall complete. Remove obsolete config include lines manually.\n'
