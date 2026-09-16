@@ -14,6 +14,9 @@ Available plugins:
 - `network_status`: Moonraker-backed, on-demand network status for the stock
   Klipper LCD menu.
 
+- `print_outcome`: modal post-print accepted-quantity entry and persistent CSV
+  outcome logging for the stock Klipper LCD.
+
 ## Repository layout
 
 ```text
