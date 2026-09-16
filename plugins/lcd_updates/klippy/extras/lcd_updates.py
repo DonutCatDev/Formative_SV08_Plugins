@@ -138,7 +138,7 @@ class LCDUpdates:
         sd = self.printer.lookup_object('virtual_sdcard', None)
         return (stats is not None and idle is not None
                 and stats.get_status(now).get('state') not in ('printing', 'paused')
-                and idle.get_status(now).get('state') == 'Idle'
+                and idle.get_status(now).get('state') in ('Ready', 'Idle')
                 and not (sd and sd.is_active()))
 
     def _start(self, worker):
@@ -184,7 +184,7 @@ class LCDUpdates:
         if not module or module not in self.allowed:
             raise gcmd.error('Update selection expired or module disallowed')
         if not self._idle():
-            raise gcmd.error('LCD updates require an idle, unpaused printer')
+            raise gcmd.error('LCD updates require a ready, unpaused printer')
         if not self._start(lambda: self._update_worker(module)):
             raise gcmd.error('Updates busy or status uncertain; inspect Moonraker')
 
@@ -201,9 +201,9 @@ class LCDUpdates:
             # before submission. Never access Klipper objects from this thread.
             state = self._http('/printer/objects/query?print_stats&idle_timeout&virtual_sdcard')['status']
             if (state['print_stats']['state'] in ('printing', 'paused')
-                    or state['idle_timeout']['state'] != 'Idle'
+                    or state['idle_timeout']['state'] not in ('Ready', 'Idle')
                     or state['virtual_sdcard'].get('is_active')):
-                raise ValueError('Printer is not idle')
+                raise ValueError('Printer is not ready for updates')
             submitted = True
             self._http('/machine/update/upgrade', {'name': module}, self.update_timeout)
             self._read_status(self._http('/machine/update/status'))
