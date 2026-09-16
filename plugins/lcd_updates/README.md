@@ -31,6 +31,7 @@ update_timeout: 3600
 [menu __main __formative_updates]
 type: lcd_updates
 name: Updates
+enable: {printer.idle_timeout.state == "Idle" and printer.print_stats.state not in ("printing", "paused") and not printer.virtual_sdcard.is_active}
 ```
 
 Every discovered updater defaults to disallowed. Add its exact Moonraker entry
@@ -68,7 +69,10 @@ The plugin requires an idle, unpaused printer locally and checks those condition
 again through Moonraker before the named upgrade. Moonraker independently rejects
 updates during printing. This is not a transaction lock against another client
 starting work in the final interval; use the LCD maintenance workflow on an idle
-pilot. Each request always carries an explicit module name; no full update,
+pilot. The root Updates menu is hidden unless Klipper reports an idle, unpaused
+printer with no active virtual-SD job. The execution-time checks remain in place
+if printer state changes after opening the menu. Each request always carries an
+explicit module name; no full update,
 recovery, rollback, or automatic retries are exposed.
 
 Moonraker may restart Klipper when updating these repositories. If submission
