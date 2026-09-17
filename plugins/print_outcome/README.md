@@ -7,6 +7,10 @@ select **Confirm**. Confirmation appends one durable CSV record, exits the menu,
 returns to `sv08_home`, clears the LCD message, and restores the configured
 screen color. Selecting zero records a fully unsuccessful print.
 
+The supplied color reset uses Klipper's immediate `SYNC=0` LED update, matching
+the existing SV08 LCD status macros so the green completion color is replaced
+as soon as the outcome is accepted.
+
 Cancelled and errored prints do not prompt or create a record. A completed job
 that was already present when Klipper restarted is ignored, preventing a stale
 prompt. Until the operator confirms, the prompt remains modal and no record is

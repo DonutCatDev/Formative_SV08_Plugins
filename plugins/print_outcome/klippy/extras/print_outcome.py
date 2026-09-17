@@ -29,6 +29,11 @@ class OutcomeQuantityInput(display_menu.MenuInput):
         value = self.get_context()["menu"]["input"]
         return "Accepted: %d" % int(value)
 
+    def _eval_value(self, context):
+        # Klipper clears its temporary edit buffer on the second click. Read
+        # the committed plugin value afterward instead of the initial maximum.
+        return float(self.plugin.selected_quantity)
+
     def _store(self, element, context):
         self.plugin.selected_quantity = int(context["menu"]["input"])
         return ""
@@ -76,7 +81,7 @@ class PrintOutcome:
         self.reset_gcode = self.printer.load_object(
             config, "gcode_macro").load_template(
                 config, "on_accept_gcode", """
-SET_LED LED=Screen_Colour RED=0.5 GREEN=0.4 BLUE=0.7
+SET_LED LED=Screen_Colour RED=0.5 GREEN=0.4 BLUE=0.7 SYNC=0
 SET_DISPLAY_GROUP GROUP=sv08_home
 M117
 """)
