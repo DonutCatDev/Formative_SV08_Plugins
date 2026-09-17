@@ -51,7 +51,7 @@ class MenuPrintOutcome(display_menu.MenuList):
         # This is a modal prompt: omit MenuList's automatic back item.
         self._viewport_top = 0
         self.insert_item(self.manager.menuitem_from(
-            "command", name="Print succeeded?", gcode=lambda el, ctx: ""))
+            "command", name="Print success?", gcode=lambda el, ctx: ""))
         self.insert_item(OutcomeQuantityInput(self.manager, self.plugin))
         self.insert_item(self.manager.menuitem_from(
             "command", name="Confirm", gcode=self._confirm))
@@ -181,7 +181,10 @@ M117
         self.quantity_limit = 0
         if self.menu.is_running():
             self.menu.exit(force=True)
-        self.gcode.run_script(self.reset_gcode.render())
+        # This handler is already running inside MenuManager's gcode.run_script
+        # mutex. Dispatch directly from the active command to avoid reacquiring
+        # that non-reentrant mutex and stalling before the LCD reset executes.
+        self.gcode.run_script_from_command(self.reset_gcode.render())
         gcmd.respond_info("Print outcome logged: %d accepted" % count)
 
     def get_status(self, eventtime):
