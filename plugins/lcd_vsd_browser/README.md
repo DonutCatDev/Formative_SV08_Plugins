@@ -37,10 +37,12 @@ Only bounded sections from the beginning and end of the file are read. Results
 are cached using the file path, size, and modification time, so revisiting a
 selection does not repeatedly scan the file.
 
-`Print now` exits the LCD menu and starts the selected path with Klipper's
-recursive `SDCARD_PRINT_FILE` implementation. The plugin passes an internal
-numeric token through G-Code instead of interpolating the filename, allowing
-spaces and punctuation without creating command-injection ambiguity.
+With `filament_tracker` installed, the confirmation row becomes **Filament
+check** and the detail view combines time and weight as `xxHxxM xxxxg`. The
+tracker must approve or explicitly override the comparison before this plugin
+starts the selected path. Without the tracker, **Print now** retains the direct
+start behavior. Internal numeric tokens keep filenames containing spaces,
+punctuation, or Unicode out of generated G-Code.
 
 Set `confirm_print: False` to make a file click start immediately. Confirmation
 is recommended for a physical rotary encoder.
@@ -82,3 +84,10 @@ metadata_read_bytes: 262144
 
 This is an initial implementation and requires pilot testing on the physical
 display before fleet use.
+
+The plugin also exposes `printer.lcd_vsd_browser.slicer_completion` for the LCD
+home screen. During a virtual-SD print this is a local 24-hour completion time
+(`HHMM`) calculated from the slicer's embedded duration and remaining file
+progress. It is `----` when the slicer estimate or active filename is
+unavailable. This field deliberately excludes the menu's configured startup and
+heat-soak overhead so its basis remains the slicer value.

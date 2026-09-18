@@ -9,6 +9,7 @@ import logging
 import math
 import os
 import re
+import time
 
 from .display import menu as display_menu
 
@@ -31,6 +32,34 @@ _HEATSOAK_RE = re.compile(
     r"^\s*START_PRINT\b[^\r\n;]*?\bHEATSOAK\s*=\s*"
     r"([+]?(?:\d+(?:\.\d*)?|\.\d+))",
     re.IGNORECASE | re.MULTILINE)
+_FILAMENT_GRAMS_RES = (
+    re.compile(
+        r"^\s*;\s*(?:total\s+)?filament\s+used\s*\[g\]\s*=\s*"
+        r"([+]?(?:\d+(?:\.\d*)?|\.\d+))",
+        re.IGNORECASE | re.MULTILINE),
+    re.compile(
+        r"^\s*;\s*(?:filament\s+weight|plastic\s+weight|material\s+weight)"
+        r"\s*[:=]\s*([+]?(?:\d+(?:\.\d*)?|\.\d+))\s*g\b",
+        re.IGNORECASE | re.MULTILINE),
+    re.compile(
+        r"^\s*;\s*(?:total\s+filament\s+weight\s*\[g\]|filament\s+mass_g)"
+        r"\s*[:=]\s*([+]?(?:\d+(?:\.\d*)?|\.\d+))",
+        re.IGNORECASE | re.MULTILINE),
+)
+_FILAMENT_MM_RES = (
+    re.compile(
+        r"^\s*;\s*(?:total\s+)?filament\s+used\s*\[mm\]\s*=\s*"
+        r"([+]?(?:\d+(?:\.\d*)?|\.\d+))",
+        re.IGNORECASE | re.MULTILINE),
+    re.compile(
+        r"^\s*;\s*(?:filament\s+length|material\s+length)\s*[:=]\s*"
+        r"([+]?(?:\d+(?:\.\d*)?|\.\d+))\s*mm\b",
+        re.IGNORECASE | re.MULTILINE),
+    re.compile(
+        r"^\s*;\s*total\s+filament\s+length\s*\[mm\]\s*[:=]\s*"
+        r"([+]?(?:\d+(?:\.\d*)?|\.\d+))",
+        re.IGNORECASE | re.MULTILINE),
+)
 
 
 def _parse_slicer_seconds(text):
@@ -58,6 +87,28 @@ def _format_estimate(seconds):
     return "Est %dm" % (minutes,)
 
 
+def _parse_first_float(patterns, text):
+    for pattern in patterns:
+        match = pattern.search(text)
+        if match is not None:
+            return float(match.group(1))
+    return None
+
+
+def _format_compact_estimate(seconds, grams):
+    if seconds is None:
+        duration = "--H--M"
+    else:
+        total_minutes = max(0, int(math.ceil(seconds / 60.0)))
+        hours, minutes = divmod(total_minutes, 60)
+        duration = "%02dH%02dM" % (min(hours, 99), minutes)
+    if grams is None:
+        weight = "----g"
+    else:
+        weight = "%4dg" % min(9999, max(0, int(math.ceil(grams))))
+    return "%s %s" % (duration, weight)
+
+
 class MenuLCDVSDFile(display_menu.MenuList):
     def __init__(self, manager, plugin, relative_path, size):
         self.plugin = plugin
@@ -74,18 +125,25 @@ class MenuLCDVSDFile(display_menu.MenuList):
         super(MenuLCDVSDFile, self)._populate()
         filename = os.path.basename(self.relative_path)
 
-        def start_print(element, context):
+        def select_print(element, context):
             token = self.plugin.remember_file(self.relative_path)
+            if self.plugin.filament_tracker() is not None:
+                return "LCD_VSD_FILAMENT_CHECK TOKEN=%d" % (token,)
             element.manager.exit()
             return "LCD_VSD_PRINT TOKEN=%d" % (token,)
 
         self.insert_item(self.manager.menuitem_from(
-            "command", name="Print now", gcode=start_print))
+            "command",
+            name=("Filament check" if self.plugin.filament_tracker() is not None
+                  else "Print now"),
+            gcode=select_print))
         self.insert_item(self.manager.menuitem_from(
             "command", name=filename, gcode=lambda element, context: ""))
         estimate = self.plugin.estimate_file(self.relative_path)
+        grams, _ = self.plugin.filament_estimate_file(
+            self.relative_path)
         self.insert_item(self.manager.menuitem_from(
-            "command", name=_format_estimate(estimate),
+            "command", name=_format_compact_estimate(estimate, grams),
             gcode=lambda element, context: ""))
 
 
@@ -158,9 +216,14 @@ class LCDVSDFileBrowser:
         self._next_token = 1
         self._files = collections.OrderedDict()
         self._estimate_cache = {}
+        self._active_eta_file = None
+        self._active_slicer_seconds = None
         self.gcode.register_command(
             "LCD_VSD_PRINT", self.cmd_LCD_VSD_PRINT,
             desc="Print a file selected by the LCD virtual-SD browser")
+        self.gcode.register_command(
+            "LCD_VSD_FILAMENT_CHECK", self.cmd_LCD_VSD_FILAMENT_CHECK,
+            desc="Check spool capacity before an LCD virtual-SD print")
 
         # Replace the stock vsdlist implementation before [display] constructs
         # configured menu items. Keep a distinct alias for optional custom use.
@@ -220,7 +283,13 @@ class LCDVSDFileBrowser:
             self._files.popitem(last=False)
         return token
 
-    def estimate_file(self, relative_path):
+    def filament_tracker(self):
+        return self.printer.lookup_object("filament_tracker", None)
+
+    def remembered_file(self, token):
+        return self._files.get(token)
+
+    def _file_estimates(self, relative_path):
         root, filename = self._resolve(relative_path)
         stat = os.stat(filename)
         cache_key = (filename, stat.st_size, stat.st_mtime_ns)
@@ -237,42 +306,73 @@ class LCDVSDFileBrowser:
                 tail = b""
         head_text = head.decode("utf-8", "replace")
         tail_text = tail.decode("utf-8", "replace")
+        metadata_text = head_text + "\n" + tail_text
         slicer_seconds = _parse_slicer_seconds(tail_text)
         if slicer_seconds is None:
             slicer_seconds = _parse_slicer_seconds(head_text)
         if slicer_seconds is None:
-            estimate = None
+            total_estimate = None
         else:
             heatsoak = _parse_heatsoak_minutes(head_text)
             if heatsoak is None:
                 heatsoak = self.default_heatsoak_minutes
-            estimate = slicer_seconds + 60.0 * (
+            total_estimate = slicer_seconds + 60.0 * (
                 heatsoak + self.startup_minutes)
+        filament_grams = _parse_first_float(
+            _FILAMENT_GRAMS_RES, metadata_text)
+        filament_mm = _parse_first_float(_FILAMENT_MM_RES, metadata_text)
+        estimates = (
+            slicer_seconds, total_estimate, filament_grams, filament_mm)
 
         # Retain only current entries and keep cache growth bounded.
         self._estimate_cache = {
             key: value for key, value in self._estimate_cache.items()
             if key[0] != filename
         }
-        self._estimate_cache[cache_key] = estimate
+        self._estimate_cache[cache_key] = estimates
         while len(self._estimate_cache) > self.max_tokens:
             self._estimate_cache.pop(next(iter(self._estimate_cache)))
-        return estimate
+        return estimates
 
-    def cmd_LCD_VSD_PRINT(self, gcmd):
+    def estimate_file(self, relative_path):
+        # Menu confirmation includes startup and heat-soak overhead.
+        return self._file_estimates(relative_path)[1]
+
+    def slicer_estimate_file(self, relative_path):
+        # Home-screen completion time intentionally uses the slicer's value.
+        return self._file_estimates(relative_path)[0]
+
+    def filament_estimate_file(self, relative_path):
+        estimates = self._file_estimates(relative_path)
+        return estimates[2], estimates[3]
+
+    def cmd_LCD_VSD_FILAMENT_CHECK(self, gcmd):
         token = gcmd.get_int("TOKEN", minval=1)
         relative_path = self._files.get(token)
         if relative_path is None:
             raise gcmd.error("LCD file selection expired; select the file again")
+        tracker = self.filament_tracker()
+        if tracker is None:
+            raise gcmd.error("Filament tracker is not installed")
+        grams, filament_mm = self.filament_estimate_file(relative_path)
+        tracker.begin_check(token, relative_path, grams, filament_mm)
+
+    def start_token(self, token):
+        relative_path = self._files.get(token)
+        if relative_path is None:
+            raise self.printer.command_error(
+                "LCD file selection expired; select the file again")
         root, filename = self._resolve(relative_path)
         if not os.path.isfile(filename):
-            raise gcmd.error("Selected LCD file no longer exists")
+            raise self.printer.command_error(
+                "Selected LCD file no longer exists")
         extension = filename.rsplit(".", 1)[-1].lower()
         if extension not in self.extensions:
-            raise gcmd.error("Selected LCD file is not an allowed G-Code file")
+            raise self.printer.command_error(
+                "Selected LCD file is not an allowed G-Code file")
         sdcard = self._virtual_sd()
         if sdcard.is_active():
-            raise gcmd.error("SD busy")
+            raise self.printer.command_error("SD busy")
         normalized = os.path.relpath(filename, root)
         print_gcmd = self.gcode.create_gcode_command(
             "SDCARD_PRINT_FILE", "SDCARD_PRINT_FILE",
@@ -280,13 +380,47 @@ class LCDVSDFileBrowser:
         sdcard.cmd_SDCARD_PRINT_FILE(print_gcmd)
         del self._files[token]
 
+    def cmd_LCD_VSD_PRINT(self, gcmd):
+        token = gcmd.get_int("TOKEN", minval=1)
+        self.start_token(token)
+
     def get_status(self, eventtime):
+        completion = "----"
+        print_stats = self.printer.lookup_object("print_stats", None)
+        virtual_sd = self.printer.lookup_object("virtual_sdcard", None)
+        if print_stats is not None and virtual_sd is not None:
+            stats = print_stats.get_status(eventtime)
+            state = stats.get("state")
+            filename = stats.get("filename", "")
+            if state in ("printing", "paused") and filename:
+                if filename != self._active_eta_file:
+                    self._active_eta_file = filename
+                    try:
+                        self._active_slicer_seconds = (
+                            self.slicer_estimate_file(filename))
+                    except OSError:
+                        logging.exception(
+                            "LCD ETA could not read slicer metadata for %r",
+                            filename)
+                        self._active_slicer_seconds = None
+                slicer_seconds = self._active_slicer_seconds
+                if slicer_seconds is not None:
+                    progress = virtual_sd.get_status(eventtime).get(
+                        "progress", 0.)
+                    progress = min(1., max(0., float(progress)))
+                    remaining = slicer_seconds * (1. - progress)
+                    completion = time.strftime(
+                        "%H%M", time.localtime(time.time() + remaining))
+            elif state not in ("printing", "paused"):
+                self._active_eta_file = None
+                self._active_slicer_seconds = None
         return {
             "extensions": sorted(self.extensions),
             "confirm_print": self.confirm_print,
             "show_hidden": self.show_hidden,
             "startup_minutes": self.startup_minutes,
             "default_heatsoak_minutes": self.default_heatsoak_minutes,
+            "slicer_completion": completion,
         }
 
 

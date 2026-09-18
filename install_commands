@@ -4,6 +4,7 @@ cd Formative_SV08_Plugins && ./install-plugins.sh
 # Noninteractive alternatives:
 # ./install-plugins.sh --list
 # ./install-plugins.sh lcd_vsd_browser
+# ./install-plugins.sh filament_tracker
 # ./install-plugins.sh network_status
 # ./install-plugins.sh lcd_updates
 # ./install-plugins.sh --all
@@ -15,6 +16,7 @@ cd Formative_SV08_Plugins && ./install-plugins.sh
 # Uninstall all installer-owned plugin links, or one plugin:
 # ./install-plugins.sh --all -u
 # ./install-plugins.sh -u lcd_vsd_browser
+# ./install-plugins.sh -u filament_tracker
 # ./install-plugins.sh -u network_status
 # ./install-plugins.sh -u lcd_updates
 

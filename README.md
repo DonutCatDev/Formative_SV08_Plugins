@@ -11,6 +11,8 @@ Available plugins:
 
 - `lcd_vsd_browser`: a hierarchical browser with explicit print confirmation
   for files below Klipper's `virtual_sdcard` directory.
+- `filament_tracker`: persistent single-spool accounting, LCD file preflight,
+  and new-spool entry for idle and runout-recovery workflows.
 - `network_status`: Moonraker-backed, on-demand network status for the stock
   Klipper LCD menu.
 
