@@ -7,6 +7,9 @@ without replacing machine configuration.
 
 Available plugins:
 
+- `calibration_history`: append-only records for calibration starts and
+  successful completions, with per-run identifiers and elapsed time.
+
 - `lcd_updates`: on-demand LCD updates for explicitly allowed Moonraker modules.
 
 - `lcd_vsd_browser`: a hierarchical browser with explicit print confirmation
