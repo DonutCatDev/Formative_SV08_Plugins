@@ -9,6 +9,7 @@ from .display import menu as display_menu
 
 
 QTY_RE = re.compile(r"(?:^|[^A-Z0-9])QTY([0-9]+)$", re.IGNORECASE)
+ACTIVE_PRINT_STATES = ("printing", "paused", "error")
 
 
 def quantity_from_filename(filename):
@@ -123,20 +124,25 @@ M117
         state = status["state"]
         if state == "complete" and self.last_state in ("printing", "paused"):
             self._begin_prompt(status, eventtime)
+        elif state == "cancelled" and self.last_state in ACTIVE_PRINT_STATES:
+            self._log_cancelled(status)
         self.last_state = state
         return eventtime + self.poll_interval
 
-    def _begin_prompt(self, status, eventtime):
+    def _outcome_for(self, status):
         end_time = datetime.datetime.now().astimezone()
         duration = max(0., float(status.get("total_duration", 0.)))
-        self.pending_token += 1
-        self.pending = {
-            "token": self.pending_token,
+        return {
             "filename": status.get("filename", ""),
             "start_time": end_time - datetime.timedelta(seconds=duration),
             "end_time": end_time,
             "total_duration": duration,
         }
+
+    def _begin_prompt(self, status, eventtime):
+        self.pending_token += 1
+        self.pending = self._outcome_for(status)
+        self.pending["token"] = self.pending_token
         self.quantity_limit = self._quantity_for(
             self.pending["filename"], eventtime)
         self.selected_quantity = self.quantity_limit
@@ -149,7 +155,10 @@ M117
             raise self.printer.command_error(
                 "Unable to open the print outcome LCD prompt")
 
-    def _append_log(self, count):
+    def _log_cancelled(self, status):
+        self._append_log(self._outcome_for(status), 0)
+
+    def _append_log(self, outcome, count):
         parent = os.path.dirname(self.log_path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -161,10 +170,10 @@ M117
                 writer.writerow(("filename", "start_time", "end_time",
                                  "total_duration_seconds", "accepted_count"))
             writer.writerow((
-                self.pending["filename"],
-                self.pending["start_time"].isoformat(timespec="seconds"),
-                self.pending["end_time"].isoformat(timespec="seconds"),
-                "%.3f" % self.pending["total_duration"], count))
+                outcome["filename"],
+                outcome["start_time"].isoformat(timespec="seconds"),
+                outcome["end_time"].isoformat(timespec="seconds"),
+                "%.3f" % outcome["total_duration"], count))
             logfile.flush()
             os.fsync(logfile.fileno())
 
@@ -175,7 +184,7 @@ M117
             raise gcmd.error("Print outcome selection expired")
         if count > self.quantity_limit:
             raise gcmd.error("Accepted count exceeds the pending quantity")
-        self._append_log(count)
+        self._append_log(self.pending, count)
         self.pending = None
         self.selected_quantity = 0
         self.quantity_limit = 0

@@ -11,10 +11,12 @@ The supplied color reset uses Klipper's immediate `SYNC=0` LED update, matching
 the existing SV08 LCD status macros so the green completion color is replaced
 as soon as the outcome is accepted.
 
-Cancelled and errored prints do not prompt or create a record. A completed job
-that was already present when Klipper restarted is ignored, preventing a stale
-prompt. Until the operator confirms, the prompt remains modal and no record is
-written.
+Cancelled prints do not prompt; they immediately create a record with an
+accepted count of zero. This also applies when an operator cancels after a print
+error. Errored prints that are not cancelled do not create a record. A completed
+or cancelled job that was already present when Klipper restarted is ignored,
+preventing a stale record or prompt. Until the operator confirms a completed
+print, the prompt remains modal and no record is written.
 
 ## Quantity detection
 

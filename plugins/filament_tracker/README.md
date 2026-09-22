@@ -25,6 +25,9 @@ State is atomically stored in:
 ~/printer_data/config/filament-tracker.json
 ```
 
+Gram values are normalized to 0.1 g for calculations and persistence, avoiding
+floating-point noise in the state file and audit log.
+
 An append-only audit log is stored in:
 
 ```text

@@ -13,6 +13,12 @@ from .display import menu as display_menu
 TERMINAL_STATES = frozenset(("complete", "cancelled", "error"))
 
 
+def _tenths_grams(value):
+    if value is None:
+        return None
+    return round(max(0., float(value)), 1)
+
+
 def _display_grams(value):
     if value is None:
         return "unknown"
@@ -140,8 +146,10 @@ class FilamentTracker:
             maxval=self.maximum_spool_grams)
         self.safety_margin_grams = config.getfloat(
             "safety_margin_grams", 0., minval=0.)
+        self.safety_margin_grams = _tenths_grams(self.safety_margin_grams)
         self.poll_interval = config.getfloat("poll_interval", 0.5, above=0.)
         self.state = self._load_state()
+        self._state_needs_write = self._normalize_state_grams()
         self.pending = None
         self.selected_amount = self.default_spool_grams
         self.return_to_check = False
@@ -165,7 +173,23 @@ class FilamentTracker:
     @property
     def remaining_grams(self):
         value = self.state.get("remaining_g")
-        return None if value is None else max(0., float(value))
+        return _tenths_grams(value)
+
+    def _normalize_state_grams(self):
+        changed = False
+        remaining = self.state.get("remaining_g")
+        normalized = _tenths_grams(remaining)
+        if remaining != normalized:
+            self.state["remaining_g"] = normalized
+            changed = True
+        job = self.state.get("active_job")
+        if isinstance(job, dict):
+            expected = job.get("expected_g")
+            normalized = _tenths_grams(expected)
+            if expected != normalized:
+                job["expected_g"] = normalized
+                changed = True
+        return changed
 
     def _load_state(self):
         default = {"schema_version": 1, "remaining_g": None,
@@ -185,6 +209,7 @@ class FilamentTracker:
         return default
 
     def _write_state(self):
+        self._normalize_state_grams()
         parent = os.path.dirname(self.state_path)
         if parent:
             os.makedirs(parent, exist_ok=True)
@@ -206,6 +231,7 @@ class FilamentTracker:
         finally:
             if os.path.exists(temporary):
                 os.unlink(temporary)
+        self._state_needs_write = False
 
     def _append_event(self, event, filename="", expected_g=None,
                       used_g=None, remaining_g=None, detail=""):
@@ -223,9 +249,9 @@ class FilamentTracker:
             writer.writerow((
                 datetime.datetime.now().astimezone().isoformat(
                     timespec="seconds"), event, filename,
-                "" if expected_g is None else "%.3f" % expected_g,
-                "" if used_g is None else "%.3f" % used_g,
-                "" if remaining_g is None else "%.3f" % remaining_g,
+                "" if expected_g is None else "%.1f" % expected_g,
+                "" if used_g is None else "%.1f" % used_g,
+                "" if remaining_g is None else "%.1f" % remaining_g,
                 detail))
             stream.flush()
             os.fsync(stream.fileno())
@@ -244,6 +270,8 @@ class FilamentTracker:
                 detail="Klipper restarted without recoverable print stats")
             self.state["active_job"] = None
             self._write_state()
+        elif self._state_needs_write:
+            self._write_state()
         self.reactor.update_timer(self.timer, self.reactor.NOW)
 
     def _show_dialog(self, dialog):
@@ -261,7 +289,8 @@ class FilamentTracker:
                 "Another filament-tracked print is still active")
         self.pending = {
             "token": token, "filename": relative_path,
-            "expected_g": expected_g, "expected_mm": expected_mm,
+            "expected_g": _tenths_grams(expected_g),
+            "expected_mm": expected_mm,
         }
         self._show_dialog(MenuFilamentCheck(self.menu, self))
 
@@ -275,9 +304,10 @@ class FilamentTracker:
         expected_g = job.get("expected_g")
         expected_mm = job.get("expected_mm")
         if expected_g is not None and expected_mm not in (None, 0):
-            return delta_mm * float(expected_g) / float(expected_mm)
+            return _tenths_grams(
+                delta_mm * float(expected_g) / float(expected_mm))
         if terminal_state == "complete" and expected_g is not None:
-            return max(0., float(expected_g))
+            return _tenths_grams(expected_g)
         return 0.
 
     def _charge_active_segment(self, event, terminal_state=None):
@@ -288,7 +318,7 @@ class FilamentTracker:
         used_g = self._job_usage_grams(job, current_mm, terminal_state)
         remaining = self.remaining_grams
         if remaining is not None:
-            self.state["remaining_g"] = max(0., remaining - used_g)
+            self.state["remaining_g"] = _tenths_grams(remaining - used_g)
         job["accounted_mm"] = current_mm
         self._append_event(
             event, job.get("filename", ""), job.get("expected_g"), used_g,
@@ -331,7 +361,7 @@ class FilamentTracker:
         job = self.state.get("active_job")
         if job is not None:
             self._charge_active_segment("spool_segment_closed")
-        self.state["remaining_g"] = float(amount)
+        self.state["remaining_g"] = _tenths_grams(amount)
         self.state["loaded_at"] = datetime.datetime.now().astimezone().isoformat(
             timespec="seconds")
         self._write_state()
