@@ -56,8 +56,13 @@ Open **Updates** to discover modules and refresh only allowed, registered module
 through Moonraker. While the background worker runs, the LCD shows **Working...**.
 The list rebuilds from cached status when the worker finishes, without requiring
 a menu reopen. Only allowed modules with updates appear, including newly
-configured modules once explicitly allowed. Select a module, then **Update now?**
-to confirm; `..` cancels. **Refresh** repeats the on-demand query.
+configured modules once explicitly allowed. Select **Update all (N)**, then
+**Update all now?**, to apply every displayed allowed update. The plugin
+revalidates that selection against current Moonraker status immediately before
+submission and sends an explicit named request for each module; it never uses
+Moonraker's unrestricted all-software update. To update just one module, select
+it and then **Update now?**; `..` cancels. **Refresh** repeats the on-demand
+query.
 
 No background polling occurs. `get_status()` and display drawing perform no
 network I/O. `printer.lcd_updates.modules` exposes discovered names with
@@ -75,7 +80,9 @@ pilot. The root Updates menu is hidden unless Klipper reports a ready or idle,
 unpaused printer with no active virtual-SD job. The execution-time checks remain
 in place
 if printer state changes after opening the menu. Each request always carries an
-explicit module name; no full update,
+explicit module name; the batch action submits its named requests together so
+Moonraker can retain them if updating a managed repository restarts Klipper.
+No unrestricted full update,
 recovery, rollback, or automatic retries are exposed.
 
 Moonraker may restart Klipper when updating these repositories. If submission
@@ -96,6 +103,8 @@ Verify on the pilot before fleet propagation:
 - Allowlist edits and an empty allowlist behave as documented after restart.
 - Async completion rebuilds the LCD list and confirmation/back navigation works.
 - A named repository update completes and expected restart behavior is understood.
+- Update all submits every displayed allowed module, no disallowed module, and
+  completes across the expected Klipper restart(s).
 - Paused/printing/busy states reject updates; API failure and restart recovery work.
 
 API basis: [Moonraker Update Manager](https://moonraker.readthedocs.io/en/latest/external_api/update_manager/)
