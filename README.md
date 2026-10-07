@@ -5,6 +5,10 @@ Formative SV08 fleet. It is intentionally separate from the shared printer
 configuration repository so plugins can be installed, updated, and removed
 without replacing machine configuration.
 
+See [DEVELOPMENT.md](DEVELOPMENT.md) for the payload contract, change workflow,
+and pilot acceptance expectations. Each plugin directory owns its user-facing
+behavior and compatibility notes.
+
 Available plugins:
 
 - `calibration_history`: append-only records for calibration starts and
