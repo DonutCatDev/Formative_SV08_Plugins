@@ -3,20 +3,24 @@
 Klipper extension that opens a modal operator prompt on the stock character LCD
 after a virtual-SD print reaches `complete`. The encoder starts on **Accepted**;
 click it, rotate from zero through the detected job quantity, click again, then
-select **Confirm**. Confirmation appends one durable CSV record, exits the menu,
-returns to `sv08_home`, clears the LCD message, and restores the configured
-screen color. Selecting zero records a fully unsuccessful print.
+select **Confirm**. A positive confirmation appends one durable CSV record,
+exits the menu, returns to `sv08_home`, clears the LCD message, and restores the
+configured screen color. Selecting zero instead opens a required follow-up
+screen with **Test**, **Machine**, and **Filament** reason choices; choosing one
+logs the fully unsuccessful print and performs the same reset.
 
 The supplied color reset uses Klipper's immediate `SYNC=0` LED update, matching
 the existing SV08 LCD status macros so the green completion color is replaced
 as soon as the outcome is accepted.
 
-Cancelled prints do not prompt; they immediately create a record with an
-accepted count of zero. This also applies when an operator cancels after a print
-error. Errored prints that are not cancelled do not create a record. A completed
-or cancelled job that was already present when Klipper restarted is ignored,
-preventing a stale record or prompt. Until the operator confirms a completed
-print, the prompt remains modal and no record is written.
+Cancelled prints open the same required reason screen with an accepted count of
+zero. This also applies when an operator cancels after a print error. The record
+is written only after the operator selects a reason; that selection also exits
+the menu, restores `sv08_home`, clears the LCD message, and resets the red
+cancellation color to the configured default. Errored prints that are not
+cancelled do not create a record. A completed or cancelled job that was already
+present when Klipper restarted is ignored, preventing a stale record or prompt.
+Until the operator finishes the applicable prompt, no record is written.
 
 ## Quantity detection
 
@@ -45,7 +49,10 @@ The default CSV location is:
 ```
 
 Its columns are `filename`, `start_time`, `end_time`,
-`total_duration_seconds`, and `accepted_count`. Times are local ISO-8601 values
+`total_duration_seconds`, `accepted_count`, and `comment`. Positive outcomes
+leave `comment` empty; zero outcomes contain one of the three LCD reason values.
+An existing five-column plugin CSV is upgraded atomically on the next write,
+with its historical comment cells left empty. Times are local ISO-8601 values
 with their UTC offset. The duration comes from Klipper's `print_stats`; because
 Klipper exposes no completion event timestamp, the end time is sampled within
 `poll_interval` of completion and the start time is reconstructed from the
@@ -55,6 +62,12 @@ Replace the activation symlink with a machine-local regular copy before changing
 `log_path`, quantities, or `on_accept_gcode`; the installer intentionally does
 not overwrite local files. Keep the log on local storage. The supplied accept
 hook matches the current SV08 `Screen_Colour` LED and `sv08_home` display group.
+
+Run the focused local regression suite from the plugin repository root with:
+
+```text
+python3 -B tests/test_print_outcome.py
+```
 
 No plugin installation or physical-printer validation has been performed from
 this workspace.
