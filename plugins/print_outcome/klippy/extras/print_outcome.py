@@ -15,7 +15,10 @@ OUTCOME_COMMENTS = ("Test", "Machine", "Filament")
 LEGACY_CSV_HEADER = (
     "filename", "start_time", "end_time", "total_duration_seconds",
     "accepted_count")
-CSV_HEADER = LEGACY_CSV_HEADER + ("comment",)
+COMMENT_CSV_HEADER = LEGACY_CSV_HEADER + ("comment",)
+CSV_HEADER = (
+    "filename", "start_time", "end_time", "total_duration_seconds",
+    "print_duration_seconds", "job_status", "accepted_count", "comment")
 
 
 def quantity_from_filename(filename):
@@ -164,12 +167,16 @@ M117
 
     def _outcome_for(self, status):
         end_time = datetime.datetime.now().astimezone()
-        duration = max(0., float(status.get("total_duration", 0.)))
+        total_duration = max(0., float(status.get("total_duration", 0.)))
+        print_duration = max(0., float(status.get("print_duration", 0.)))
         return {
             "filename": status.get("filename", ""),
-            "start_time": end_time - datetime.timedelta(seconds=duration),
+            "start_time": end_time - datetime.timedelta(
+                seconds=total_duration),
             "end_time": end_time,
-            "total_duration": duration,
+            "total_duration": total_duration,
+            "print_duration": min(print_duration, total_duration),
+            "job_status": status.get("state", ""),
         }
 
     def _begin_prompt(self, status, eventtime):
@@ -206,27 +213,33 @@ M117
             raise self.printer.command_error(
                 "Unable to open the print outcome LCD prompt")
 
-    def _upgrade_legacy_log(self):
+    def _upgrade_log(self, source_header):
         old_stat = os.stat(self.log_path)
         parent = os.path.dirname(self.log_path) or "."
         temporary_path = None
         try:
             with open(self.log_path, newline="", encoding="utf-8") as source:
-                reader = csv.reader(source)
-                header = next(reader, None)
-                if tuple(header or ()) != LEGACY_CSV_HEADER:
+                reader = csv.DictReader(source)
+                if tuple(reader.fieldnames or ()) != source_header:
                     raise ValueError("Unsupported print outcome CSV header")
                 with tempfile.NamedTemporaryFile(
                         "w", newline="", encoding="utf-8", dir=parent,
                         prefix=".print-outcomes-", delete=False) as temporary:
                     temporary_path = temporary.name
-                    writer = csv.writer(temporary)
-                    writer.writerow(CSV_HEADER)
+                    writer = csv.DictWriter(temporary, fieldnames=CSV_HEADER)
+                    writer.writeheader()
                     for row in reader:
-                        if len(row) != len(LEGACY_CSV_HEADER):
-                            raise ValueError(
-                                "Malformed legacy print outcome CSV row")
-                        writer.writerow(tuple(row) + ("",))
+                        writer.writerow({
+                            "filename": row.get("filename", ""),
+                            "start_time": row.get("start_time", ""),
+                            "end_time": row.get("end_time", ""),
+                            "total_duration_seconds": row.get(
+                                "total_duration_seconds", ""),
+                            "print_duration_seconds": "",
+                            "job_status": "",
+                            "accepted_count": row.get("accepted_count", ""),
+                            "comment": row.get("comment", ""),
+                        })
                     temporary.flush()
                     os.fsync(temporary.fileno())
             os.chmod(temporary_path, old_stat.st_mode & 0o7777)
@@ -247,8 +260,8 @@ M117
             header = tuple(next(csv.reader(logfile), ()))
         if header == CSV_HEADER:
             return False
-        if header == LEGACY_CSV_HEADER:
-            self._upgrade_legacy_log()
+        if header in (LEGACY_CSV_HEADER, COMMENT_CSV_HEADER):
+            self._upgrade_log(header)
             return False
         raise ValueError("Unsupported print outcome CSV header")
 
@@ -265,7 +278,9 @@ M117
                 outcome["filename"],
                 outcome["start_time"].isoformat(timespec="seconds"),
                 outcome["end_time"].isoformat(timespec="seconds"),
-                "%.3f" % outcome["total_duration"], count, comment))
+                "%.3f" % outcome["total_duration"],
+                "%.3f" % outcome["print_duration"],
+                outcome["job_status"], count, comment))
             logfile.flush()
             os.fsync(logfile.fileno())
 

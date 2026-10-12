@@ -49,14 +49,19 @@ The default CSV location is:
 ```
 
 Its columns are `filename`, `start_time`, `end_time`,
-`total_duration_seconds`, `accepted_count`, and `comment`. Positive outcomes
+`total_duration_seconds`, `print_duration_seconds`, `job_status`,
+`accepted_count`, and `comment`. Total duration remains the primary elapsed-job
+metric. Print duration is captured separately for comparison and excludes
+paused time; it is bounded to total duration before logging. `job_status`
+records the terminal Klipper state observed by the plugin. Positive outcomes
 leave `comment` empty; zero outcomes contain one of the three LCD reason values.
-An existing five-column plugin CSV is upgraded atomically on the next write,
-with its historical comment cells left empty. Times are local ISO-8601 values
-with their UTC offset. The duration comes from Klipper's `print_stats`; because
-Klipper exposes no completion event timestamp, the end time is sampled within
-`poll_interval` of completion and the start time is reconstructed from the
-duration.
+Existing five-column and six-column plugin CSVs are upgraded atomically on the
+next write. Their historical print duration and status cells remain empty
+because those values cannot be reconstructed safely on the printer. Times are
+local ISO-8601 values with their UTC offset. Both durations come from Klipper's
+`print_stats`; because Klipper exposes no completion event timestamp, the end
+time is sampled within `poll_interval` of completion and the start time is
+reconstructed from total duration.
 
 Replace the activation symlink with a machine-local regular copy before changing
 `log_path`, quantities, or `on_accept_gcode`; the installer intentionally does
