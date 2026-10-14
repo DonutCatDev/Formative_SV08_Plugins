@@ -181,8 +181,15 @@ class PrintOutcomeTests(unittest.TestCase):
                 rows = list(csv.reader(stream))
             self.assertEqual(tuple(rows[0]), module.CSV_HEADER)
             self.assertEqual(rows[1][0], "widgets_QTY4.gcode")
+            recorded_at = datetime.datetime.fromisoformat(rows[1][3])
+            self.assertIsNotNone(recorded_at.tzinfo)
+            self.assertGreaterEqual(
+                recorded_at,
+                datetime.datetime(
+                    2026, 9, 16, 10, 2, tzinfo=datetime.timezone.utc),
+            )
             self.assertEqual(
-                rows[1][3:], ["120.250", "90.500", "complete", "3", ""])
+                rows[1][4:], ["120.250", "90.500", "complete", "3", ""])
             self.assertIsNone(plugin.pending)
             self.assertTrue(plugin.menu.exited)
             self.assertEqual(plugin.gcode.scripts, ["RESET_LCD"])
@@ -229,7 +236,7 @@ class PrintOutcomeTests(unittest.TestCase):
             with open(plugin.log_path, newline="", encoding="utf-8") as stream:
                 rows = list(csv.reader(stream))
             self.assertEqual(
-                rows[1][3:],
+                rows[1][4:],
                 ["120.000", "80.000", "complete", "0", "Machine"])
             self.assertEqual(plugin.gcode.scripts, ["RESET_LCD"])
 
@@ -272,7 +279,8 @@ class PrintOutcomeTests(unittest.TestCase):
                     rows = list(csv.reader(stream))
                 self.assertEqual(len(rows), 2)
                 self.assertEqual(rows[1][0], "cancelled_QTY4.gcode")
-                self.assertEqual(rows[1][3:], [
+                self.assertTrue(rows[1][3])
+                self.assertEqual(rows[1][4:], [
                     "42.500", "12.250", "cancelled", "0", "Filament"])
                 self.assertEqual(plugin.last_state, "cancelled")
                 self.assertEqual(next_poll, 10.25)
@@ -293,6 +301,8 @@ class PrintOutcomeTests(unittest.TestCase):
                     2026, 9, 16, 10, 0, tzinfo=datetime.timezone.utc),
                 "end_time": datetime.datetime(
                     2026, 9, 16, 10, 1, tzinfo=datetime.timezone.utc),
+                "recorded_at": datetime.datetime(
+                    2026, 9, 16, 10, 5, tzinfo=datetime.timezone.utc),
                 "total_duration": 60.0,
                 "print_duration": 45.0,
                 "job_status": "complete",
@@ -303,9 +313,11 @@ class PrintOutcomeTests(unittest.TestCase):
             with open(plugin.log_path, newline="", encoding="utf-8") as stream:
                 rows = list(csv.reader(stream))
             self.assertEqual(tuple(rows[0]), module.CSV_HEADER)
-            self.assertEqual(rows[1][3:], ["1.000", "", "", "1", ""])
+            self.assertEqual(rows[1][3:], ["", "1.000", "", "", "1", ""])
             self.assertEqual(
-                rows[2][3:], ["60.000", "45.000", "complete", "0", "Test"])
+                rows[2][3:], [
+                    "2026-09-16T10:05:00+00:00", "60.000", "45.000",
+                    "complete", "0", "Test"])
 
     def test_comment_csv_is_upgraded_without_losing_comments(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -323,6 +335,8 @@ class PrintOutcomeTests(unittest.TestCase):
                     2026, 9, 16, 10, 0, tzinfo=datetime.timezone.utc),
                 "end_time": datetime.datetime(
                     2026, 9, 16, 10, 1, tzinfo=datetime.timezone.utc),
+                "recorded_at": datetime.datetime(
+                    2026, 9, 16, 10, 5, tzinfo=datetime.timezone.utc),
                 "total_duration": 60.0,
                 "print_duration": 45.0,
                 "job_status": "cancelled",
@@ -334,10 +348,46 @@ class PrintOutcomeTests(unittest.TestCase):
                 rows = list(csv.reader(stream))
             self.assertEqual(tuple(rows[0]), module.CSV_HEADER)
             self.assertEqual(
-                rows[1][3:], ["2.000", "", "", "0", "Machine"])
+                rows[1][3:], ["", "2.000", "", "", "0", "Machine"])
             self.assertEqual(
                 rows[2][3:],
-                ["60.000", "45.000", "cancelled", "0", "Filament"])
+                ["2026-09-16T10:05:00+00:00", "60.000", "45.000",
+                 "cancelled", "0", "Filament"])
+
+    def test_detail_csv_is_upgraded_with_unknown_recorded_at(self):
+        with tempfile.TemporaryDirectory() as directory:
+            plugin = object.__new__(module.PrintOutcome)
+            plugin.log_path = str(pathlib.Path(directory) / "outcomes.csv")
+            with open(plugin.log_path, "w", newline="", encoding="utf-8") \
+                    as stream:
+                writer = csv.writer(stream)
+                writer.writerow(module.DETAIL_CSV_HEADER)
+                writer.writerow((
+                    "old.gcode", "start", "end", "60.000", "45.000",
+                    "complete", 1, "",
+                ))
+            outcome = {
+                "filename": "new.gcode",
+                "start_time": datetime.datetime(
+                    2026, 9, 16, 10, 0, tzinfo=datetime.timezone.utc),
+                "end_time": datetime.datetime(
+                    2026, 9, 16, 10, 1, tzinfo=datetime.timezone.utc),
+                "recorded_at": datetime.datetime(
+                    2026, 9, 16, 10, 5, tzinfo=datetime.timezone.utc),
+                "total_duration": 60.0,
+                "print_duration": 45.0,
+                "job_status": "complete",
+            }
+
+            plugin._append_log(outcome, 1)
+
+            with open(plugin.log_path, newline="", encoding="utf-8") as stream:
+                rows = list(csv.reader(stream))
+            self.assertEqual(tuple(rows[0]), module.CSV_HEADER)
+            self.assertEqual(rows[1][3], "")
+            self.assertEqual(rows[1][4:], [
+                "60.000", "45.000", "complete", "1", "",
+            ])
 
     def test_outcome_tracks_both_durations_and_clamps_print_duration(self):
         plugin = object.__new__(module.PrintOutcome)

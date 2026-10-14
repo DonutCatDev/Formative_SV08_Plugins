@@ -48,17 +48,20 @@ The default CSV location is:
 ~/printer_data/config/print-outcomes.csv
 ```
 
-Its columns are `filename`, `start_time`, `end_time`,
+Its columns are `filename`, `start_time`, `end_time`, `recorded_at`,
 `total_duration_seconds`, `print_duration_seconds`, `job_status`,
-`accepted_count`, and `comment`. Total duration remains the primary elapsed-job
-metric. Print duration is captured separately for comparison and excludes
+`accepted_count`, and `comment`. `recorded_at` is sampled when the operator's
+quantity or required zero-outcome reason is successfully written, so it remains
+distinct from the terminal-state `end_time`. Total duration remains the primary
+elapsed-job metric. Print duration is captured separately for comparison and excludes
 paused time; it is bounded to total duration before logging. `job_status`
 records the terminal Klipper state observed by the plugin. Positive outcomes
 leave `comment` empty; zero outcomes contain one of the three LCD reason values.
-Existing five-column and six-column plugin CSVs are upgraded atomically on the
-next write. Their historical print duration and status cells remain empty
-because those values cannot be reconstructed safely on the printer. Times are
-local ISO-8601 values with their UTC offset. Both durations come from Klipper's
+Existing five-column, six-column, and prior eight-column plugin CSVs are
+upgraded atomically on the next write. Their unavailable historical fields,
+including operator submission time, remain empty because those values cannot
+be reconstructed safely on the printer. Times are local ISO-8601 values with
+their UTC offset. Both durations come from Klipper's
 `print_stats`; because Klipper exposes no completion event timestamp, the end
 time is sampled within `poll_interval` of completion and the start time is
 reconstructed from total duration.

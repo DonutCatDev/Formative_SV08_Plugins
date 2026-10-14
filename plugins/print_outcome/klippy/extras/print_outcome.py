@@ -16,9 +16,13 @@ LEGACY_CSV_HEADER = (
     "filename", "start_time", "end_time", "total_duration_seconds",
     "accepted_count")
 COMMENT_CSV_HEADER = LEGACY_CSV_HEADER + ("comment",)
-CSV_HEADER = (
+DETAIL_CSV_HEADER = (
     "filename", "start_time", "end_time", "total_duration_seconds",
     "print_duration_seconds", "job_status", "accepted_count", "comment")
+CSV_HEADER = (
+    "filename", "start_time", "end_time", "recorded_at",
+    "total_duration_seconds", "print_duration_seconds", "job_status",
+    "accepted_count", "comment")
 
 
 def quantity_from_filename(filename):
@@ -233,10 +237,12 @@ M117
                             "filename": row.get("filename", ""),
                             "start_time": row.get("start_time", ""),
                             "end_time": row.get("end_time", ""),
+                            "recorded_at": row.get("recorded_at", ""),
                             "total_duration_seconds": row.get(
                                 "total_duration_seconds", ""),
-                            "print_duration_seconds": "",
-                            "job_status": "",
+                            "print_duration_seconds": row.get(
+                                "print_duration_seconds", ""),
+                            "job_status": row.get("job_status", ""),
                             "accepted_count": row.get("accepted_count", ""),
                             "comment": row.get("comment", ""),
                         })
@@ -260,7 +266,8 @@ M117
             header = tuple(next(csv.reader(logfile), ()))
         if header == CSV_HEADER:
             return False
-        if header in (LEGACY_CSV_HEADER, COMMENT_CSV_HEADER):
+        if header in (
+                LEGACY_CSV_HEADER, COMMENT_CSV_HEADER, DETAIL_CSV_HEADER):
             self._upgrade_log(header)
             return False
         raise ValueError("Unsupported print outcome CSV header")
@@ -278,6 +285,7 @@ M117
                 outcome["filename"],
                 outcome["start_time"].isoformat(timespec="seconds"),
                 outcome["end_time"].isoformat(timespec="seconds"),
+                outcome["recorded_at"].isoformat(timespec="seconds"),
                 "%.3f" % outcome["total_duration"],
                 "%.3f" % outcome["print_duration"],
                 outcome["job_status"], count, comment))
@@ -315,6 +323,7 @@ M117
 
     def _finish_pending(self, gcmd, comment):
         count = self.pending["accepted_count"]
+        self.pending["recorded_at"] = datetime.datetime.now().astimezone()
         self._append_log(self.pending, count, comment)
         self.pending = None
         self.selected_quantity = 0
