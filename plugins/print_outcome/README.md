@@ -26,8 +26,9 @@ Until the operator finishes the applicable prompt, no record is written.
 
 The upper bound is selected in this order:
 
-1. A case-insensitive `QTY<number>` at the end of the filename stem, such as
-   `bracket_QTY24.gcode`.
+1. A case-insensitive `QTY<number>` at the end of the filename stem, optionally
+   followed by a semicolon and an annotation made of letters or digits, as in
+   `bracket_QTY24.gcode` or `bracket_QTY24;15mm3s.gcode`.
 2. The count of objects declared to Klipper's `[exclude_object]` module.
 3. `default_quantity` (1 in the supplied activation file).
 

@@ -97,6 +97,8 @@ class FakePrinter:
 class PrintOutcomeTests(unittest.TestCase):
     def test_quantity_suffix(self):
         self.assertEqual(module.quantity_from_filename("part_QTY24.gcode"), 24)
+        self.assertEqual(module.quantity_from_filename("part_QTY24;06.gcode"), 24)
+        self.assertEqual(module.quantity_from_filename("part_QTY4;fan.gcode"), 4)
         self.assertEqual(module.quantity_from_filename("A qty7.GCO"), 7)
         self.assertEqual(module.quantity_from_filename("QTY0.gcode"), 0)
         self.assertIsNone(module.quantity_from_filename("QTY8_repaired.gcode"))
@@ -106,10 +108,12 @@ class PrintOutcomeTests(unittest.TestCase):
         plugin = object.__new__(module.PrintOutcome)
         plugin.maximum_quantity = 50
         plugin.default_quantity = 1
-        plugin._object_count = lambda eventtime: 6
+        plugin._object_count = lambda eventtime: 12
+        self.assertEqual(
+            plugin._quantity_for("MAX/300048-01_QTY24;15mm3s.gcode", 10.), 24)
         self.assertEqual(plugin._quantity_for("part_QTY8.gcode", 10.), 8)
         self.assertEqual(plugin._quantity_for("part_QTY80.gcode", 10.), 50)
-        self.assertEqual(plugin._quantity_for("part.gcode", 10.), 6)
+        self.assertEqual(plugin._quantity_for("part.gcode", 10.), 12)
         plugin._object_count = lambda eventtime: None
         self.assertEqual(plugin._quantity_for("part.gcode", 10.), 1)
 

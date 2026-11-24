@@ -9,7 +9,8 @@ import tempfile
 from .display import menu as display_menu
 
 
-QTY_RE = re.compile(r"(?:^|[^A-Z0-9])QTY([0-9]+)$", re.IGNORECASE)
+QTY_RE = re.compile(
+    r"(?:^|[^A-Z0-9])QTY([0-9]+)(?:;[A-Z0-9]+)?$", re.IGNORECASE)
 ACTIVE_PRINT_STATES = ("printing", "paused", "error")
 OUTCOME_COMMENTS = ("Test", "Machine", "Filament")
 LEGACY_CSV_HEADER = (
